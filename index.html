@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>𝐖𝐑𝐎𝐗</title>
+<style>
+:root{--bg:#0b0d14;--card:#151926;--line:#262c42;--ink:#f2f4fb;--mute:#8e98b8;--acc:#7cf5c1;--acc-ink:#06241a;--err:#ff8a80}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;padding:max(28px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}
+main{max-width:560px;margin:0 auto}
+h1{font-size:clamp(3rem,16vw,5rem);line-height:1;margin:8vh 0 8px;text-align:center;letter-spacing:.08em}
+.sub{text-align:center;color:var(--mute);margin:0 0 28px}
+.bar{display:flex;gap:8px}
+input{flex:1;min-width:0;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+input:focus,button:focus-visible{outline:3px solid var(--acc);outline-offset:1px}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:14px 20px;cursor:pointer;background:var(--acc);color:var(--acc-ink)}
+button:disabled{opacity:.5;cursor:wait}
+#msg{min-height:1.6em;margin:12px 2px;color:var(--err);font-size:.95rem}
+#res{display:none;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.top{display:flex;gap:12px;padding:12px;align-items:center}
+#th{width:84px;height:112px;object-fit:cover;border-radius:10px;background:var(--line);flex:none}
+#ti{font-weight:700;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+#au{color:var(--mute);font-size:.9rem}
+.opts{display:grid;gap:8px;padding:0 12px 12px}
+.opt{display:flex;justify-content:space-between;align-items:center;background:transparent;color:var(--ink);border:1px solid var(--line);text-align:left;width:100%}
+.opt:hover{border-color:var(--acc)}
+.opt small{color:var(--mute);font-weight:400}
+.note{text-align:center;color:var(--mute);font-size:.8rem;margin-top:26px}
+</style>
+</head>
+<body>
+<main>
+  <h1>𝐖𝐑𝐎𝐗</h1>
+  <p class="sub">TikTok veya Instagram linkini yapıştır</p>
+  <div class="bar">
+    <input id="url" type="url" inputmode="url" placeholder="Video linki" aria-label="Video linki">
+    <button id="go">İndir</button>
+  </div>
+  <div id="msg" role="alert"></div>
+  <div id="res">
+    <div class="top"><img id="th" alt=""><div><div id="ti"></div><div id="au"></div></div></div>
+    <div class="opts">
+      <button class="opt" data-kind="mp4">Video (MP4) <small>görüntü + ses</small></button>
+      <button class="opt" data-kind="mp3">Sadece ses (MP3) <small>müzik / konuşma</small></button>
+      <button class="opt" data-kind="cover">Kapak resmi <small>JPG</small></button>
+    </div>
+  </div>
+  <p class="note">Sadece kendi videolarını veya izin verilen içerikleri indir.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const post = (p, b) => fetch(p, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(b)});
+let info = null;
+
+async function find(){
+  const url = $("url").value.trim();
+  $("msg").textContent = ""; $("res").style.display = "none";
+  if(!/^https?:\/\/.*(tiktok|instagram)\.com/i.test(url)){ $("msg").textContent = "Geçerli bir TikTok veya Instagram linki gir."; return; }
+  $("go").disabled = true; $("go").textContent = "Aranıyor…";
+  try{
+    const r = await post("/api/info", {url});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+    info = d;
+    $("th").src = d.thumbnail || ""; $("ti").textContent = d.title; $("au").textContent = d.author;
+    $("res").style.display = "block";
+  }catch(e){
+    $("msg").textContent = e instanceof TypeError ? "Sunucuya ulaşılamadı. Biraz bekleyip tekrar dene." : e.message;
+  }
+  $("go").disabled = false; $("go").textContent = "İndir";
+}
+
+async function get(kind, btn){
+  const old = btn.innerHTML; btn.disabled = true; btn.textContent = "Hazırlanıyor…"; $("msg").textContent = "";
+  try{
+    if(kind === "cover"){
+      if(!info.thumbnail) throw new Error("Kapak resmi yok.");
+      window.open(info.thumbnail, "_blank"); btn.disabled = false; btn.innerHTML = old; return;
+    }
+    const r = await post("/api/download", {url:$("url").value.trim(), kind});
+    if(!r.ok) throw new Error((await r.json()).error);
+    const blob = await r.blob();
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "wrox." + kind; a.click();
+  }catch(e){ $("msg").textContent = e.message || "İndirme başarısız."; }
+  btn.disabled = false; btn.innerHTML = old;
+}
+
+$("go").onclick = find;
+$("url").addEventListener("keydown", e => { if(e.key === "Enter") find(); });
+document.querySelectorAll(".opt").forEach(b => b.onclick = () => get(b.dataset.kind, b));
+</script>
+</body>
+</html>
