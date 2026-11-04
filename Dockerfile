@@ -4,4 +4,4 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-CMD gunicorn -b 0.0.0.0:${PORT:-5000} --timeout 120 app:app
+CMD gunicorn -k gthread -w 1 --threads 16 --timeout 300 -b 0.0.0.0:${PORT:-5000} app:app
